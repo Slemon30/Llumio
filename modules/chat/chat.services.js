@@ -7,11 +7,18 @@ import { updateBalance } from '../user/user.service.js';
 
 export async function newChat(userId, model, provider, message) {
     let chatResponse;
+    const finalMessage = `Format outputs using these rules:
+    Currency: Always escape dollar signs with exactly one backslash (e.g. \\$50).
+    Math/Variables: Use standard LaTeX wrapped in $ (inline) or $$ (block).
+    CRITICAL BOUNDARY: Never place currency inside a LaTeX math block. Close the math block before writing currency amounts (e.g., write $R \\approx$ \\$3.4 billion, NOT $R \\approx \\$3.4$).
+    These formatting rules should not affect the actual content explanation or examples.
+    Message : ${message}
+    `;
     if (provider == 'gemini') {
-        chatResponse = await geminiModelCall(model, message);
+        chatResponse = await geminiModelCall(model, finalMessage);
     }
     else if (provider == 'groq') {
-        chatResponse = await groqModelCall(model, message);
+        chatResponse = await groqModelCall(model, finalMessage);
     }
     if (chatResponse.statusCode == 500) {
         return {status : "Failed", statusCode: 500, message : `New chat failed with ${model}`};
