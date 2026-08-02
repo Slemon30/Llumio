@@ -21,13 +21,6 @@ export const modelsList = [
     inputPrice: 0.3,
   },
   { 
-    id: 5, 
-    model: "gemini-2.5-flash-lite", 
-    provider: "gemini", 
-    outputPrice: 0.4, 
-    inputPrice: 0.1,
-  },
-  { 
     id: 6, 
     model: "gemini-3-flash-preview", 
     provider: "gemini", 
