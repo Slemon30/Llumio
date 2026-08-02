@@ -61,7 +61,6 @@ export async function newChat(userId, model, provider, message) {
 };
 
 export async function completeChat(chatId, userId, model, provider, message) {
-    console.log(chatId);
     const pastChat = await chat.findOne({_id : chatId});
     let chatResponse;
     if (pastChat.latestProvider == provider) {
@@ -101,7 +100,6 @@ export async function completeChat(chatId, userId, model, provider, message) {
     const currentModel = modelsList.find((m) => m.model === model && m.provider === provider);
     const amount = (chatResponse.input_tokens * (currentModel.inputPrice)) + (chatResponse.output_tokens * (currentModel.outputPrice));
     const updatedBalance = await updateBalance(userId, amount, 'sub');
-    console.log(updatedBalance);
     if (updatedBalance.statusCode !== 200) {
         return {status: "Failed", statusCode: 500, message : "Failed to update user balance"};
     }
@@ -114,7 +112,7 @@ export async function completeChat(chatId, userId, model, provider, message) {
 }
 
 export async function getAllChats(userId) {
-    const allChats = await chat.find({userId : userId});
+    const allChats = await chat.find({userId : userId}).sort({ "updatedAt" : -1});
     if (!(allChats.length > 0)) {
         return {status: "Failed", statusCode: 404, message : "No chats found for user"};
     }
@@ -122,9 +120,7 @@ export async function getAllChats(userId) {
 }
 
 export async function getChat(chatId) {
-    console.log(chatId);
     const selectedChat = await chat.findOne({_id: chatId});
-    console.log(selectedChat);
     if (!selectedChat) {
         return {status : "Failed", statusCode: 404, message: "No chat found"};
     }

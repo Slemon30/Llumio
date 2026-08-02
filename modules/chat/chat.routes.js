@@ -41,7 +41,6 @@ router.get('/allchats', verifyToken, async(req, res) => {
 router.get('/:chatId', verifyToken, async(req, res) => {
     try {
         const chatId = req.params.chatId;
-        console.log(chatId);
         const selectedChat = await getChat(chatId);
         res.status(selectedChat.statusCode).json(selectedChat);
     } catch (error) {
