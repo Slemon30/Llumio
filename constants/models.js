@@ -5,6 +5,7 @@ export const modelsList = [
     provider: "gemini", 
     outputPrice: 2.5, 
     inputPrice: 0.30,
+    contextLimit: 1048576,
   },
   { 
     id: 2, 
@@ -12,6 +13,7 @@ export const modelsList = [
     provider: "gemini", 
     outputPrice: 9, 
     inputPrice: 1.5,
+    contextLimit: 1048576,
   },
   { 
     id: 3, 
@@ -19,6 +21,7 @@ export const modelsList = [
     provider: "gemini", 
     outputPrice: 2.5, 
     inputPrice: 0.3,
+    contextLimit: 1048576,
   },
   { 
     id: 6, 
@@ -26,6 +29,7 @@ export const modelsList = [
     provider: "gemini", 
     outputPrice: 3, 
     inputPrice: 0.5,
+    contextLimit: 1048576,
   },
   { 
     id: 7, 
@@ -33,6 +37,7 @@ export const modelsList = [
     provider: "gemini", 
     outputPrice: 1.5, 
     inputPrice: 0.25,
+    contextLimit: 1048576,
   },
   {
     id: 8,
@@ -40,6 +45,7 @@ export const modelsList = [
     provider: "gemini",
     outputPrice: 7.5,
     inputPrice: 1.5,
+    contextLimit: 1048576,
   },
   { 
     id: 9, 
@@ -47,6 +53,7 @@ export const modelsList = [
     provider: "groq", 
     outputPrice: 3, 
     inputPrice: 0.6,
+    contextLimit: 131072,
   },
   { 
     id: 10, 
@@ -54,6 +61,7 @@ export const modelsList = [
     provider: "groq", 
     outputPrice: 0.08, 
     inputPrice: 0.05,
+    contextLimit: 131072,
   },
   { 
     id: 11, 
@@ -61,6 +69,7 @@ export const modelsList = [
     provider: "groq", 
     outputPrice: 0.79, 
     inputPrice: 0.59,
+    contextLimit: 131072,
   },
   { 
     id: 12, 
@@ -68,6 +77,7 @@ export const modelsList = [
     provider: "groq", 
     outputPrice: 0.6, 
     inputPrice: 0.15,
+    contextLimit: 131072,
   },
   { 
     id: 13, 
@@ -75,5 +85,6 @@ export const modelsList = [
     provider: "groq", 
     outputPrice: 0.3, 
     inputPrice: 0.075,
+    contextLimit: 131072,
   },
 ];

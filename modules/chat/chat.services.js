@@ -4,6 +4,7 @@ import { geminiModelCall } from '../../llms/gemini/gemini.call.js';
 import { groqModelCall } from '../../llms/groq/groq.call.js';
 import { modelsList } from '../../constants/models.js';
 import { updateBalance, userWalletBalance } from '../user/user.service.js';
+import { summaryModel } from '../../constants/constants.js';
 
 export async function newChat(userId, model, provider, message) {
     let chatResponse;
@@ -137,6 +138,20 @@ export async function completeChat(chatId, userId, model, provider, message) {
     if (updatedBalance.statusCode !== 200) {
         return {status: "Failed", statusCode: 500, message : "Failed to update user balance"};
     }
+
+    if (chatResponse.input_tokens > currentModel.contextLimit*0.8) {
+        generateChatSummary(chatId)
+            .then(res => {
+                if (res?.statusCode !== 200) {
+                    console.log("Background chat summary trigger failed:", res?.message);
+                } else {
+                    console.log("Background chat summary updated successfully for chat:", chatId);
+                }
+            })
+            .catch(err => {
+                console.error("Error in background generateChatSummary:", err);
+            });
+    }
     return {status : "Success", 
         statusCode: 200, 
         llmResponse: chatResponse.response,
@@ -159,4 +174,77 @@ export async function getChat(chatId) {
         return {status : "Failed", statusCode: 404, message: "No chat found"};
     }
     return {status: "Success", statusCode: 200, message : "Chat found", chat: selectedChat};
+}
+
+async function generateChatSummary(chatId) {
+    try {
+        const pastChat = await chat.findOne({_id : chatId});
+        if (!pastChat) {
+            return {status : "Failed", statusCode: 404, message: "No chat found"};
+        }
+        
+        let chatHistory;
+        const lastSummaryTimestamp = pastChat?.chatSummary?.timestamp || 0;
+
+        for(let i = pastChat.messages.length-1; i>=0; i-=1) {
+            if (pastChat.messages[i].timestamp > lastSummaryTimestamp) {
+                chatHistory = `${pastChat.messages[i]}` + ` ${chatHistory}`;
+            }
+            else {
+                break;
+            }
+        }
+        const summaryPromptRules = `You are an advanced state-preservation engine for a multi-model software engineering chat platform. Your task is to update and consolidate an ongoing conversation history into a single, highly compressed context block so that an AI can get full context of the conversation so far.
+        Format outputs using these rules:
+        Currency: Always escape dollar signs with exactly one backslash (e.g. \\$50).
+        Math/Variables: Use standard LaTeX wrapped in $ (inline) or $$ (block).
+        CRITICAL BOUNDARY: Never place currency inside a LaTeX math block. Close the math block before writing currency amounts (e.g., write $R \\approx$ \\$3.4 billion, NOT $R \\approx \\$3.4$).
+        These formatting rules should not affect the actual content explanation or examples.
+        
+        CRITICAL CONSTRAINTS & PRESERVATION RULES:
+        CODE SNIPPETS: Keep all critical code blocks, configuration snippets, SQL queries, JSON payloads, and terminal commands completely intact or verbatim. Do not truncate code into pseudo-code unless it is trivial boilerplate.
+        FORMATTING & MEDIA: Retain exact markdown structures, file paths, image/media references, and URLs mentioned in the conversation.
+        USER INSTRUCTIONS: Explicitly preserve any active constraints, formatting requirements, or specific rules requested by the user.
+        TECHNICAL STATE: Maintain an explicit record of architectural decisions, libraries chosen, database schemas, and known bugs or errors being debugged.
+        
+        Apply only appropriate constraints and rules.`
+        
+        const summaryPromptInput=`INPUT DATA:
+        [NEW CONVERSATION TURNS TO COMPRESS]
+        ${chatHistory}`
+
+        const summaryPromptOutput = `OUTPUT FORMAT:
+        Provide the updated summary organized under clear markdown headers:
+        - Current Objective & Active User Instructions
+        - Key Technical Decisions & Architecture State
+        - Preserved Code Blocks & File References
+        - Recent Progress & Unresolved Bugs`
+
+        let finalMessage = `${summaryPromptInput}`;
+        let existingSummaryPrompt;
+        if (pastChat?.chatSummary) {
+            existingSummaryPrompt = `Existing Chat Summary:
+            ${pastChat.chatSummary.summary}`;
+            finalMessage = `${finalMessage} \n ${existingSummaryPrompt}`;
+        }
+        finalMessage = `${finalMessage} \n ${summaryPromptRules} \n ${summaryPromptOutput}`;
+
+        const newSummary = await geminiModelCall(summaryModel, finalMessage);
+        if (newSummary.statusCode !== 200) {
+            return {status: "Failed", statusCode: 500, message: "Failed to summarize chat"};
+        }
+
+        const updateChatSummary = await chat.findOneAndUpdate({_id : chatId},
+            {$set : {"chatSummary.summary" : newSummary.response, "chatSummary.timestamp" : Date.now()}},
+            {new : true}
+        );
+
+        if (!updateChatSummary) {
+            return {status: "Failed", statusCode: 500, message: "Failed to update chat summary in DB"};
+        }
+
+        return {status: "Success", statusCode: 200, message: "Chat Summary updated"};
+    } catch (error) {
+        console.log(`Error is summarizing chat : ${error.message} : ${error.stack}`);
+    }
 }
