@@ -1,0 +1,1 @@
+export const summaryModel = `gemini-3.5-flash-lite`;

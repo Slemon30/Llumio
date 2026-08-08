@@ -21,7 +21,7 @@ export async function groqModelCall(model, message) {
         total_tokens: interaction.usage.total_tokens, 
         input_tokens: interaction.usage.prompt_tokens,
         output_tokens: interaction.usage.completion_tokens,
-        thought_tokens: interaction.usage.completion_tokens_details.reasoning_tokens,
+        thought_tokens: interaction?.usage?.completion_tokens_details?.reasoning_tokens || 0,
         message : "Successful chat completion Groq",
     };
 }

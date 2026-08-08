@@ -15,6 +15,10 @@ const chatSchema = new Schema({
         }
     ],
     interactionId : {type: String},
+    chatSummary: {
+        summary: {type: String},
+        timestamp : {type: Date},
+    }
 }, {timestamps: true});
 
 export default model('chat', chatSchema);
