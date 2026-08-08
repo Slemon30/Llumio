@@ -3,7 +3,7 @@ import user from '../../models/user.js';
 import { geminiModelCall } from '../../llms/gemini/gemini.call.js';
 import { groqModelCall } from '../../llms/groq/groq.call.js';
 import { modelsList } from '../../constants/models.js';
-import { updateBalance } from '../user/user.service.js';
+import { updateBalance, userWalletBalance } from '../user/user.service.js';
 
 export async function newChat(userId, model, provider, message) {
     let chatResponse;
@@ -14,6 +14,17 @@ export async function newChat(userId, model, provider, message) {
     These formatting rules should not affect the actual content explanation or examples.
     Message : ${message}
     `;
+    const currentModel = modelsList.find((m) => m.model === model && m.provider === provider);
+    const inputTokenCountCost = ((finalMessage.length*1.2)/4)*(currentModel.inputPrice);
+
+    const currentUserBalance = await userWalletBalance(userId);
+
+    if(currentUserBalance.statusCode !== 200) {
+        return {status: "Failed", statusCode: 500, message: "Database error. Try again."};
+    }
+    if (currentUserBalance.walletBalance < inputTokenCountCost) {
+        return {status: "Failed", statusCode: 402, message: "Insufficient funds"};
+    }
     if (provider == 'gemini') {
         chatResponse = await geminiModelCall(model, finalMessage);
     }
@@ -45,7 +56,7 @@ export async function newChat(userId, model, provider, message) {
     if (!saveChat) {
         return {status : "Failed" , statusCode : 500, message : "Failed to save chat in database"};
     }
-    const currentModel = modelsList.find((m) => m.model === model && m.provider === provider);
+    
     const amount = (chatResponse.input_tokens * currentModel.inputPrice) + (chatResponse.output_tokens * currentModel.outputPrice);
     const updatedBalance = await updateBalance(userId, amount, 'sub');
     if (updatedBalance.statusCode !== 200) {
@@ -63,14 +74,31 @@ export async function newChat(userId, model, provider, message) {
 export async function completeChat(chatId, userId, model, provider, message) {
     const pastChat = await chat.findOne({_id : chatId});
     let chatResponse;
+    const currentModel = modelsList.find((m) => m.model === model && m.provider === provider);
+    const currentUserBalance = await userWalletBalance(userId);
+    if(currentUserBalance.statusCode !== 200) {
+        return {status: "Failed", statusCode: 500, message: "Database error. Try again."};
+    }
     if (pastChat.latestProvider == provider) {
         if (provider == 'gemini') {
+            const inputTokenCountCost = ((message.length*1.2)/4)*(currentModel.inputPrice);
+            
+            if (currentUserBalance.walletBalance < inputTokenCountCost) {
+                return {status: "Failed", statusCode: 402, message: "Insufficient funds"};
+            }
+            
             chatResponse = await geminiModelCall(model, message, pastChat.interactionId);
         } else if (provider == 'groq') {
             const finalMessage = `This is your past conversation with the user. Having context of it, now answer the next message sent by the user.
             Past messages : ${pastChat.messages}
 
             New message : ${message}`
+
+            const inputTokenCountCost = ((finalMessage.length*1.2)/4)*(currentModel.inputPrice);
+            
+            if (currentUserBalance.walletBalance < inputTokenCountCost) {
+                return {status: "Failed", statusCode: 402, message: "Insufficient funds"};
+            }
             chatResponse = await groqModelCall(model, finalMessage);
         }
     } else {
@@ -78,6 +106,13 @@ export async function completeChat(chatId, userId, model, provider, message) {
             Past messages : ${pastChat.messages}
             
             New message : ${message}`
+
+            const inputTokenCountCost = ((finalMessage.length*1.2)/4)*(currentModel.inputPrice);
+            
+            if (currentUserBalance.walletBalance < inputTokenCountCost) {
+                return {status: "Failed", statusCode: 402, message: "Insufficient funds"};
+            }
+
         if (provider == 'gemini') {
             chatResponse = await geminiModelCall(model, finalMessage);
         }
@@ -97,8 +132,7 @@ export async function completeChat(chatId, userId, model, provider, message) {
     if (!updatedChat) {
         return {status: "Failed", statusCode: 500, message : "Failed to update DB"};
     }
-    const currentModel = modelsList.find((m) => m.model === model && m.provider === provider);
-    const amount = (chatResponse.input_tokens * (currentModel.inputPrice)) + (chatResponse.output_tokens * (currentModel.outputPrice));
+    const amount = (chatResponse.input_tokens * (currentModel.inputPrice)) + ((chatResponse.output_tokens+chatResponse?.thought_tokens) * (currentModel.outputPrice));
     const updatedBalance = await updateBalance(userId, amount, 'sub');
     if (updatedBalance.statusCode !== 200) {
         return {status: "Failed", statusCode: 500, message : "Failed to update user balance"};
