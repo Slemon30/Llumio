@@ -157,9 +157,9 @@ export async function completeChat(chatId, userId, model, provider, message) {
     if (updatedBalance.statusCode !== 200) {
         return {status: "Failed", statusCode: 500, message : "Failed to update user balance"};
     }
-
+    const summaryCost = (chatResponse.input_tokens * (summaryModel.inputPrice)) + ((chatResponse.output_tokens+chatResponse?.thought_tokens) * (summaryModel.outputPrice));
     if (chatResponse.input_tokens > 800) {
-        generateChatSummary(chatId)
+        generateChatSummary(chatId, userId)
             .then(res => {
                 if (res?.statusCode !== 200) {
                     console.log("Background chat summary trigger failed:", res?.message);
@@ -195,7 +195,7 @@ export async function getChat(chatId) {
     return {status: "Success", statusCode: 200, message : "Chat found", chat: selectedChat};
 }
 
-async function generateChatSummary(chatId) {
+async function generateChatSummary(chatId, userId) {
     try {
         const pastChat = await chat.findOne({_id : chatId});
         if (!pastChat) {
@@ -248,7 +248,7 @@ async function generateChatSummary(chatId) {
         }
         finalMessage = `${finalMessage} \n ${summaryPromptRules} \n ${summaryPromptOutput}`;
 
-        const newSummary = await geminiModelCall(summaryModel, finalMessage);
+        const newSummary = await geminiModelCall(summaryModel.model, finalMessage);
         if (newSummary.statusCode !== 200) {
             return {status: "Failed", statusCode: 500, message: "Failed to summarize chat"};
         }
@@ -260,6 +260,12 @@ async function generateChatSummary(chatId) {
 
         if (!updateChatSummary) {
             return {status: "Failed", statusCode: 500, message: "Failed to update chat summary in DB"};
+        }
+
+        const amount = (newSummary.input_tokens * (summaryModel.inputPrice)) + ((newSummary.output_tokens + newSummary?.thought_tokens) * (summaryModel.outputPrice));
+        const updatedBalance = await updateBalance(userId, amount, 'sub');
+        if (updatedBalance.statusCode !== 200) {
+            return {status: "Failed", statusCode: 500, message : "Failed to update user balance"};
         }
 
         return {status: "Success", statusCode: 200, message: "Chat Summary updated"};
