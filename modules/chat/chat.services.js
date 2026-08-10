@@ -80,6 +80,13 @@ export async function completeChat(chatId, userId, model, provider, message) {
     if(currentUserBalance.statusCode !== 200) {
         return {status: "Failed", statusCode: 500, message: "Database error. Try again."};
     }
+    let summaryMessage;
+    if (pastChat?.chatSummary?.summary) {
+        summaryMessage = await getSummaryMessage(pastChat, message);
+        if (summaryMessage.statusCode !== 200) {
+            return {status: "Failed", statusCode: 500, message: summaryMessage.message};
+        } 
+    }
     if (pastChat.latestProvider == provider) {
         if (provider == 'gemini') {
             const inputTokenCountCost = ((message.length*1.2)/4)*(currentModel.inputPrice);
@@ -87,13 +94,21 @@ export async function completeChat(chatId, userId, model, provider, message) {
             if (currentUserBalance.walletBalance < inputTokenCountCost) {
                 return {status: "Failed", statusCode: 402, message: "Insufficient funds"};
             }
+            let finalMessage = message;
+            if (pastChat?.chatSummary?.summary) {
+                finalMessage = summaryMessage.summaryMessage;
+            }
             
-            chatResponse = await geminiModelCall(model, message, pastChat.interactionId);
+            chatResponse = await geminiModelCall(model, finalMessage, pastChat.interactionId);
         } else if (provider == 'groq') {
-            const finalMessage = `This is your past conversation with the user. Having context of it, now answer the next message sent by the user.
+            let finalMessage = `This is your past conversation with the user. Having context of it, now answer the next message sent by the user.
             Past messages : ${pastChat.messages}
 
             New message : ${message}`
+
+            if (pastChat?.chatSummary?.summary) {
+                finalMessage = summaryMessage.summaryMessage;
+            }
 
             const inputTokenCountCost = ((finalMessage.length*1.2)/4)*(currentModel.inputPrice);
             
@@ -103,10 +118,14 @@ export async function completeChat(chatId, userId, model, provider, message) {
             chatResponse = await groqModelCall(model, finalMessage);
         }
     } else {
-        const finalMessage = `This is a past conversation with the user with a different LLM. Having context of it, now answer the next message sent by the user.
+        let finalMessage = `This is a past conversation with the user with a different LLM. Having context of it, now answer the next message sent by the user.
             Past messages : ${pastChat.messages}
             
             New message : ${message}`
+
+            if (pastChat?.chatSummary?.summary) {
+                finalMessage = summaryMessage.summaryMessage;
+            }
 
             const inputTokenCountCost = ((finalMessage.length*1.2)/4)*(currentModel.inputPrice);
             
@@ -139,7 +158,7 @@ export async function completeChat(chatId, userId, model, provider, message) {
         return {status: "Failed", statusCode: 500, message : "Failed to update user balance"};
     }
 
-    if (chatResponse.input_tokens > currentModel.contextLimit*0.8) {
+    if (chatResponse.input_tokens > 800) {
         generateChatSummary(chatId)
             .then(res => {
                 if (res?.statusCode !== 200) {
@@ -246,5 +265,41 @@ async function generateChatSummary(chatId) {
         return {status: "Success", statusCode: 200, message: "Chat Summary updated"};
     } catch (error) {
         console.log(`Error is summarizing chat : ${error.message} : ${error.stack}`);
+    }
+}
+
+async function getSummaryMessage(pastChat, userMessage) {
+    try {
+        let messagesAfterSummary;
+        const lastSummaryTimestamp = pastChat?.chatSummary?.timestamp;
+        for(let i = pastChat.messages.length-1; i>=0; i-=1) {
+            if (pastChat.messages[i].timestamp >= lastSummaryTimestamp) {
+                messagesAfterSummary = `${pastChat.messages[i]}` + ` ${messagesAfterSummary}`;
+            }
+            else {
+                break;
+            }
+        }
+
+        const summaryMessage = `Below is the content of the conversation so far, followed by the latest message from the user. \n
+        Summary : ${pastChat.chatSummary.summary} \n
+
+        Recent messages after summary : ${messagesAfterSummary} \n
+
+        Latest message : ${userMessage} \n
+
+        Format outputs using these rules:
+        Currency: Always escape dollar signs with exactly one backslash (e.g. \\$50).
+        Math/Variables: Use standard LaTeX wrapped in $ (inline) or $$ (block).
+        CRITICAL BOUNDARY: Never place currency inside a LaTeX math block. Close the math block before writing currency amounts (e.g., write $R \\approx$ \\$3.4 billion, NOT $R \\approx \\$3.4$).
+        These formatting rules should not affect the actual content explanation or examples.
+
+        Based on the data provided, respond to the current user message.
+        `
+        console.log("Sending summary message");
+        return {status: "Success", statusCode: 200, message: "Summary message created", summaryMessage : summaryMessage};
+    } catch (error) {
+        console.log(`Failed to create summary message : ${error.message} : ${error.stack}`);
+        return {status: "Failed", statusCode: 500, message: "Failed to create summary message"};
     }
 }
