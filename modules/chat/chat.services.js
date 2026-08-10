@@ -158,7 +158,7 @@ export async function completeChat(chatId, userId, model, provider, message) {
         return {status: "Failed", statusCode: 500, message : "Failed to update user balance"};
     }
     const summaryCost = (chatResponse.input_tokens * (summaryModel.inputPrice)) + ((chatResponse.output_tokens+chatResponse?.thought_tokens) * (summaryModel.outputPrice));
-    if (chatResponse.input_tokens > 800) {
+    if (chatResponse.input_tokens > currentModel.contextLimit*0.8) {
         generateChatSummary(chatId, userId)
             .then(res => {
                 if (res?.statusCode !== 200) {
