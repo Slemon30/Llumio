@@ -11,11 +11,13 @@ import geminiRoute from './llms/gemini/gemini.router.js';
 import groqRoute from './llms/groq/groq.router.js';
 import userRoute from './modules/user/user.routes.js';
 import chatRoute from './modules/chat/chat.routes.js';
+import sharedChatRoute from './modules/sharedChat/sharedChat.routes.js';
 
 app.use('/api/gemini', geminiRoute);
 app.use('/api/groq', groqRoute);
 app.use('/api/user', userRoute);
 app.use('/api/chat', chatRoute);
+app.use('/api/sharedChat', sharedChatRoute);
 
 try {
     const conn = await mongoose.connect(process.env.MONGODB_URI);

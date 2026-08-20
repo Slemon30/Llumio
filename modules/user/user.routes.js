@@ -27,9 +27,9 @@ router.post('/login', async(req, res) => {
     }
 });
 
-router.get('/profile/:id', verifyToken, async(req, res) => {
+router.get('/profile', verifyToken, async(req, res) => {
     try {
-        const id = req.query.id;
+        const id = req.user.id;
         const userDetails = await userProfile(id);
         res.status(userDetails.statusCode).json(userDetails);
     } catch (error) {
